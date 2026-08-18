@@ -87,6 +87,9 @@ CONTENT_RULES = [
         'recheck': ['cargo build --workspace --all-targets  # 展开全部调用点']}),
 ]
 
+PUB_ENUM_CTX_RE = re.compile(r'pub\s+(\([^)]*\)\s+)?enum\b')
+VARIANT_LINE_RE = re.compile(r'^\s*[A-Z][A-Za-z0-9_]*\s*(\([^)]*\))?\s*,?\s*(//.*)?$')
+
 
 def classify_path(path):
     """路径 → 匹配的路径档规则（最长命中；无命中=普通模块改动）"""
@@ -101,16 +104,23 @@ def classify_path(path):
 
 
 def parse_diff(diff_text):
+    """→ {file: {'added': [...], 'ctx': [...]}}。ctx = hunk 上下文行（含 @@ 头），
+    用于 enum-variant 规则判断"加的行是否落在 pub enum 块内"。"""
     files = {}
-    cur = None
+    cur, bucket = None, None
     for line in diff_text.splitlines():
         if line.startswith('+++ b/'):
             cur = line[6:]
-            files[cur] = []
+            files[cur] = {'added': [], 'ctx': []}
         elif line.startswith('--- a/'):
             continue
-        elif cur is not None and line.startswith('+') and not line.startswith('+++'):
-            files[cur].append(line[1:])
+        elif cur is not None:
+            if line.startswith('+') and not line.startswith('+++'):
+                files[cur]['added'].append(line[1:])
+            elif line.startswith('@@'):
+                files[cur]['ctx'].append(line)
+            elif line.startswith(' '):
+                files[cur]['ctx'].append(line[1:])
     return files
 
 
@@ -139,11 +149,24 @@ def analyze(paths, added_by_file=None):
             add_finding(p, rule)
 
     if added_by_file:
-        for fname, added in added_by_file.items():
+        for fname, payload in added_by_file.items():
+            added = payload['added'] if isinstance(payload, dict) else payload
+            ctx = payload.get('ctx', []) if isinstance(payload, dict) else []
             joined = '\n'.join(added)
             for key, rex, rule in CONTENT_RULES:
                 if rex.search(joined):
                     add_finding(fname, rule, key=f'{key}:{fname}')
+            # enum-variant：pub enum 块内加行（变体行无 pub 关键字，pub-api 规则看不见）
+            # e2e 实证教训（x-kernel KeyExpired）：加变体通常 non-breaking，但改判别值/
+            # 加非 exhaustive 匹配敏感字段时是 breaking —— 机器判，不人判
+            if ctx and any(PUB_ENUM_CTX_RE.search(c) for c in ctx):
+                variants = [a for a in added if a.strip() and VARIANT_LINE_RE.match(a)]
+                if variants:
+                    rule = {'level': 'API-SURFACE',
+                            'why': f'pub enum 块内新增 {len(variants)} 个变体（变体行无 pub 关键字，pub-api 规则盲区）；'
+                                   '加变体通常 non-breaking，但 exhaustive match 会破 —— 交给机器判',
+                            'recheck': ['tools/r_semver.sh --baseline HEAD~1  # 机器判 enum 变体是否 breaking']}
+                    add_finding(fname, rule, key=f'enum-variant:{fname}')
     return findings, rechecks
 
 
@@ -168,26 +191,36 @@ def self_test():
     check('build.rs → TOOLCHAIN', r and f[0]['level'] == 'TOOLCHAIN')
 
     # 内容档
-    diff = {'src/lib.rs': ['    pub fn parse(s: &str) -> Result<Ast, Err> {', '    Ok(a)']}
+    diff = {'src/lib.rs': {'added': ['    pub fn parse(s: &str) -> Result<Ast, Err> {', '    Ok(a)'], 'ctx': []}}
     f, r = analyze(['src/lib.rs'], diff)
     check('pub fn 变动 → API-SURFACE', r and any(x['level'] == 'API-SURFACE' for x in f))
-    diff = {'src/buf.rs': ['    let v = unsafe { Vec::from_raw_parts(p, n, c) };']}
+    diff = {'src/buf.rs': {'added': ['    let v = unsafe { Vec::from_raw_parts(p, n, c) };'], 'ctx': []}}
     f, r = analyze(['src/buf.rs'], diff)
     check('新增 unsafe → SAFETY-BOUNDARY', r and any(x['level'] == 'SAFETY-BOUNDARY' for x in f))
-    diff = {'src/net.rs': ['#[cfg(feature = "tls")]', 'fn tls_only() {}']}
+    diff = {'src/net.rs': {'added': ['#[cfg(feature = "tls")]', 'fn tls_only() {}'], 'ctx': []}}
     f, r = analyze(['src/net.rs'], diff)
     check('cfg(feature) → FEATURE-MATRIX', r and any(x['level'] == 'FEATURE-MATRIX' for x in f))
-    diff = {'src/m.rs': ['macro_rules! gen_thing {', '    () => { 42 }', '}']}
+    diff = {'src/m.rs': {'added': ['macro_rules! gen_thing {', '    () => { 42 }', '}'], 'ctx': []}}
     f, r = analyze(['src/m.rs'], diff)
     check('macro_rules → MACRO-WIDE', r and any(x['level'] == 'MACRO-WIDE' for x in f))
     # 普通 fn（非 pub）不触发
-    diff = {'src/foo.rs': ['    fn helper() -> u32 { 42 }']}
+    diff = {'src/foo.rs': {'added': ['    fn helper() -> u32 { 42 }'], 'ctx': []}}
     f, r = analyze(['src/foo.rs'], diff)
     check('非 pub fn 不触发', not r)
+    # enum 变体（e2e 实证盲区：KeyExpired 行无 pub 关键字，pub-api 规则看不见）
+    diff = {'util/kerrno/src/lib.rs': {
+        'added': ['    /// The required key has expired.', '    KeyExpired,'],
+        'ctx': ['    FileTooLarge,', ' pub enum KErrorKind {']}}
+    f, r = analyze(['util/kerrno/src/lib.rs'], diff)
+    check('pub enum 加变体 → API-SURFACE(semver)', r and any(x['level'] == 'API-SURFACE' for x in f))
+    # 反例：非 enum 上下文里的相似行不触发
+    diff = {'src/foo.rs': {'added': ['    KeyExpired,'], 'ctx': ['    let x = 1;', '    // somewhere']}}
+    f, r = analyze(['src/foo.rs'], diff)
+    check('非 enum 上下文不误报', not r)
 
     # 组合：Cargo.toml + pub API + unsafe，recheck 合并去重
-    diff = {'src/lib.rs': ['    pub fn new() -> Self { Self {} }'],
-            'src/raw.rs': ['    let b = unsafe { &*(p as *const u8) };']}
+    diff = {'src/lib.rs': {'added': ['    pub fn new() -> Self { Self {} }'], 'ctx': []},
+            'src/raw.rs': {'added': ['    let b = unsafe { &*(p as *const u8) };'], 'ctx': []}}
     f, r = analyze(['Cargo.toml', 'src/lib.rs', 'src/raw.rs'], diff)
     dup = len(r) != len(set(r))
     check(f'组合去重 ({len(r)} 条无重复, 3 个 level)', not dup and len(r) >= 5)
