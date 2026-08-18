@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# pre-commit.sample — 硬门禁：拒绝 gaming 型提交（对应 kernel 版"pre-commit硬门禁拒gaming"）
+# 安装: cp hooks/pre-commit.sample .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# 策略：fmt/clippy 是环境依赖（无工具链时跳过不阻塞）；goodhart 守卫是纯 Python 零依赖，
+#       任何环境都必须过 —— 这就是"结构级反 gaming"比"指标级检查"可靠的原因（手册 02 章）。
+set -u
+HERE="$(cd "$(dirname "$0")/.." && pwd)"   # .git/hooks/pre-commit → 仓库根
+
+# 1 graph 三查①：反 Goodhart（纯标准库，硬门禁不可跳）
+python3 "$HERE/governance/goodhart_guards.py" --base HEAD --task-type add
+gh_rc=$?
+if [ $gh_rc -ne 0 ]; then
+  echo "[pre-commit] REJECT: diff 带 gaming 证据（#[allow]/无SAFETY的unsafe/删测试…）—— 修 diff，不是修检查" >&2
+  exit 1
+fi
+
+# 2 L1/L2（有工具链才跑；CI 会补齐）
+if command -v cargo >/dev/null 2>&1; then
+  cargo fmt --check || { echo "[pre-commit] REJECT: fmt 漂移（跑 cargo fmt）" >&2; exit 1; }
+  if cargo clippy --version >/dev/null 2>&1; then
+    cargo clippy --workspace --all-targets -- -D warnings >/dev/null 2>&1 \
+      || { echo "[pre-commit] REJECT: clippy 有警告（-D warnings 心态）" >&2; exit 1; }
+  fi
+fi
+echo "[pre-commit] PASS"
+exit 0

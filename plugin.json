@@ -1,0 +1,43 @@
+{
+  "id": "rust-dev",
+  "name": "Rust Development Plugin",
+  "version": "0.1.0",
+  "description": "Rust 领域插件：验证金字塔 L1-L4（fmt→clippy→build+test→miri+audit）+ graph 层三病治理（Goodhart/向上盲区/冲突）的 Rust 特化实例。插入任何 OpenAI 兼容六组件宿主（参照 harness工程手册 12 章骨架），与 deepseek-kernel-harness 同骨架、同引擎层（engines/ 完全复用），换领域只换 tools/+governance/+AGENTS.md。",
+  "engine": {
+    "protocol": "openai-compatible（唯一协议；方言注册表覆盖差异）",
+    "registry": "engines/dialects.py",
+    "probe": "engine_probe.py",
+    "env": {
+      "KH_BASE_URL": "端点（兼容旧名 DEEPSEEK_BASE_URL）",
+      "KH_API_KEY": "密钥（兼容旧名 DEEPSEEK_API_KEY）",
+      "KH_LOOP_MODEL": "工具循环模型（覆盖注册表默认）",
+      "KH_THINKER_MODEL": "规划/审查模型",
+      "KH_ENGINE": "显式指定引擎名（否则按 base_url 自动识别）"
+    },
+    "engines": ["zhipu✅", "deepseek", "dashscope", "moonshot", "openai", "anthropic", "gemini", "local(vllm/ollama)"],
+    "router": {
+      "policy": "cascade：工具循环用 loop 模型（快、函数调用稳定）；plan/review 走 thinker（harness工程手册 08 章）",
+      "dialect_note": "reasoning_content 全引擎统一不回灌（手册 09 章 Preserved Thinking 的协议无关实现）；bigmodel loop 自动 thinking:disabled"
+    }
+  },
+  "instructions": "AGENTS.md",
+  "mount_points": {
+    "E": { "bootstrap": "AGENTS.md 注入 system；state/progress.md 尾部 200 行注入首条 user 消息（断点续传）" },
+    "T": { "tools_dir": "tools/", "extra_tools": ["r_fmt", "r_lint", "r_build", "r_miri", "r_audit", "r_semver", "graph_guard", "graph_conflict", "patch_queue_status"] },
+    "C": { "tool_result_cap": 16000, "compact_trigger": 0.8, "keep_recent": 20000 },
+    "S": { "ledger": "state/patch_ledger.jsonl", "progress": "state/progress.md", "append_only": true },
+    "L": { "authorize_hook": "hooks/authorize.py", "fail_closed": true, "rust_redlines": "cargo publish 不可撤回 / RUSTFLAGS=-A Goodhart 通道 / rustup 全局态 / cargo install --git 远程码" },
+    "V": { "pyramid": ["L1 cargo fmt --check", "L2 clippy -D warnings", "L3 build --workspace + test", "L4a miri UB 检测", "L4b cargo audit 供应链", "附加 semver-checks API 合同"], "gate": "governance 三查不过，补丁禁入队列" }
+  },
+  "governance": {
+    "goodhart": "governance/goodhart_guards.py",
+    "blindspot": "governance/global_conflicts.py",
+    "conflict": "governance/patch_queue.py",
+    "rationale": "手册 02 章 #65-66：三种结构病必须上移 graph 层。Rust 特化：#[allow]/unsafe/unwrap/#[ignore] 是语言级 gaming 原语；Cargo 依赖树/pub API/feature 矩阵是 Rust 特有盲区；Cargo.toml/lock 是冲突热点共享文件"
+  },
+  "env": {
+    "RUST_PROJECT": "workspace 根路径；未设则自动探测 ./Cargo.toml、../Cargo.toml（插件常驻 workspace 内）",
+    "CARGO_TARGET_DIR": "外置构建产物目录（可选，对应 kernel KOUT）"
+  },
+  "self_test": "python3 rust_host.py --self-test"
+}
