@@ -13,6 +13,14 @@ NEED_HELP() {
 command -v cargo >/dev/null || NEED_HELP
 cargo fmt --version >/dev/null 2>&1 || NEED_HELP
 
+# --- workspace 锚定（e2e 教训：宿主 cwd=插件目录，cargo 必须锚定 RUST_PROJECT）---
+RP="${RUST_PROJECT:-}"
+if [ -z "$RP" ]; then
+  for cand in . .. ../..; do [ -f "$cand/Cargo.toml" ] && RP="$(cd "$cand" && pwd)" && break; done
+fi
+[ -z "$RP" ] && { echo "[r_fmt] export RUST_PROJECT=/path/to/workspace（或把插件放进 workspace）"; exit 2; }
+cd "$RP" || exit 2
+
 TARGET="${1:-.}"
 echo "[r_fmt] L1 fmt --check on: $TARGET"
 # --check 只报告不落盘；修复永远走 `cargo fmt`（写动作走 write_file 白名单）

@@ -11,6 +11,14 @@
 set -u
 command -v cargo >/dev/null || { echo "[r_build] missing cargo（装 rustup）"; exit 2; }
 
+# --- workspace 锚定（e2e 教训：宿主 cwd=插件目录，cargo 必须锚定 RUST_PROJECT）---
+RP="${RUST_PROJECT:-}"
+if [ -z "$RP" ]; then
+  for cand in . .. ../..; do [ -f "$cand/Cargo.toml" ] && RP="$(cd "$cand" && pwd)" && break; done
+fi
+[ -z "$RP" ] && { echo "[r_build] export RUST_PROJECT=/path/to/workspace（或把插件放进 workspace）"; exit 2; }
+cd "$RP" || exit 2
+
 # 外置 target 目录（可选）：与源码树隔离，便于 CI 清理与多会话隔离（对应 kernel KOUT）
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-./target}"
 

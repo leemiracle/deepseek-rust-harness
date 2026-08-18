@@ -8,6 +8,15 @@
 # 退出码: 0=过/无 UB  1=发现 UB  2=环境缺（报装法）  3=解释器不支持的 crate（可豁免，须记账说明）
 set -u
 command -v cargo >/dev/null || { echo "[r_miri] missing cargo"; exit 2; }
+
+# --- workspace 锚定 ---
+RP="${RUST_PROJECT:-}"
+if [ -z "$RP" ]; then
+  for cand in . .. ../..; do [ -f "$cand/Cargo.toml" ] && RP="$(cd "$cand" && pwd)" && break; done
+fi
+[ -z "$RP" ] && { echo "[r_miri] export RUST_PROJECT=/path/to/workspace"; exit 2; }
+cd "$RP" || exit 2
+
 if ! cargo +nightly miri --version >/dev/null 2>&1; then
   echo "[r_miri] 缺 nightly 工具链或 miri 组件。装法："
   echo "  rustup toolchain install nightly"

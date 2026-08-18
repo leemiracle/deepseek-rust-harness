@@ -1,4 +1,6 @@
+# deepseek-rust-harness
 __pycache__/
 *.pyc
-state/patch_ledger.jsonl
 target/
+Cargo.lock
+*.rs.bk

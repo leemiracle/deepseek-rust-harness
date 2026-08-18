@@ -20,7 +20,13 @@ if echo "$*" | grep -qE '\-\-cap-lints|RUSTFLAGS=.*-A\s*warnings|-A\s+clippy'; t
   exit 1
 fi
 
-cd "$(cargo locate-project --workspace 2>/dev/null | sed 's/.*: "//;s/"$//' | xargs dirname 2>/dev/null || .)" 2>/dev/null || cd .
+# --- workspace 锚定（e2e 教训：宿主 cwd=插件目录，cargo 必须锚定 RUST_PROJECT）---
+RP="${RUST_PROJECT:-}"
+if [ -z "$RP" ]; then
+  for cand in . .. ../..; do [ -f "$cand/Cargo.toml" ] && RP="$(cd "$cand" && pwd)" && break; done
+fi
+[ -z "$RP" ] && { echo "[r_lint] export RUST_PROJECT=/path/to/workspace（或把插件放进 workspace）"; exit 2; }
+cd "$RP" || exit 2
 
 echo "[r_lint] L2 clippy -D warnings（all-targets: 含 tests/benches/examples —— 测试代码同样不许烂）"
 if [ -n "${1:-}" ]; then

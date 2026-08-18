@@ -7,6 +7,15 @@
 # 退出码: 0=无破坏  1=有 breaking（须升 major 或改设计）  2=环境缺/非 git 仓库
 set -u
 command -v cargo >/dev/null || { echo "[r_semver] missing cargo"; exit 2; }
+
+# --- workspace 锚定 ---
+RP="${RUST_PROJECT:-}"
+if [ -z "$RP" ]; then
+  for cand in . .. ../..; do [ -f "$cand/Cargo.toml" ] && RP="$(cd "$cand" && pwd)" && break; done
+fi
+[ -z "$RP" ] && { echo "[r_semver] export RUST_PROJECT=/path/to/workspace"; exit 2; }
+cd "$RP" || exit 2
+
 if ! cargo semver-checks --version >/dev/null 2>&1; then
   echo "[r_semver] 缺 cargo-semver-checks。装法：cargo install cargo-semver-checks --locked"
   exit 2

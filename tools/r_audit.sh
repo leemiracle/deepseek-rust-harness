@@ -9,6 +9,14 @@
 set -u
 command -v cargo >/dev/null || { echo "[r_audit] missing cargo"; exit 2; }
 
+# --- workspace 锚定 ---
+RP="${RUST_PROJECT:-}"
+if [ -z "$RP" ]; then
+  for cand in . .. ../..; do [ -f "$cand/Cargo.toml" ] && RP="$(cd "$cand" && pwd)" && break; done
+fi
+[ -z "$RP" ] && { echo "[r_audit] export RUST_PROJECT=/path/to/workspace"; exit 2; }
+cd "$RP" || exit 2
+
 FAIL=0
 
 if command -v cargo-audit >/dev/null || cargo audit --version >/dev/null 2>&1; then

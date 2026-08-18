@@ -68,3 +68,7 @@ python3 rust_host.py --task "给 src/parser.rs 的 parse() 补错误处理并过
 - `tools/`：金字塔**变形重写**（重心上移 + 供应链新层）
 - `governance/`：三病框架同构，规则**按 Rust 语言特性重实例化**
 - `hooks/`：黑名单重实例化（publish 不可撤回 > push -f；RUSTFLAGS=-A 是 kernel 不存在的 Goodhart 通道）
+
+## 📄 License
+
+[MIT](LICENSE) © 2026 leemiracle
