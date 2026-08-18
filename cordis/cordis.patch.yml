@@ -1,0 +1,8 @@
+# cordis.patch.yml — dsh bundle 层：profile 列出本包时应用（publish.md 格式）
+- insert:
+    - id: deepseek-rust-harness
+      name: deepseek-rust-harness
+      # 上层 patch 按 id 整行替换 config（later layers win per row）：
+      # config:
+      #   rustProject: /path/to/workspace
+      #   taskType: add
