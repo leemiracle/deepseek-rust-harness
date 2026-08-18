@@ -21,10 +21,17 @@ fi
 [ -z "$RP" ] && { echo "[r_fmt] export RUST_PROJECT=/path/to/workspace（或把插件放进 workspace）"; exit 2; }
 cd "$RP" || exit 2
 
-TARGET="${1:-.}"
-echo "[r_fmt] L1 fmt --check on: $TARGET"
+TARGET="${1:-}"
+echo "[r_fmt] L1 fmt --check on: ${TARGET:-<整个 workspace>}"
 # --check 只报告不落盘；修复永远走 `cargo fmt`（写动作走 write_file 白名单）
-cargo fmt --check -- "$TARGET"
+# 位置参数只接受 .rs 文件；crate 名走 -p（cargo fmt 不接受目录）
+if [ -n "$TARGET" ] && [ -f "$TARGET" ]; then
+  cargo fmt --check -- "$TARGET"
+elif [ -n "$TARGET" ]; then
+  cargo fmt --check -p "$TARGET"
+else
+  cargo fmt --check
+fi
 rc=$?
 [ $rc -ne 0 ] && {
   echo "[r_fmt] FAIL — 修复方式：cargo fmt（整crate自动格式化；禁止手调缩进凑过检）"

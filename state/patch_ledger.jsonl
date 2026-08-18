@@ -1,0 +1,3 @@
+{"ts": "2026-08-18 15:26:41", "event": "claim", "series": "S-e2e", "files": ["util/kerrno/src/lib.rs"]}
+{"ts":"2026-08-18","series":"S-e2e","patch":"kerrno: add KErrorKind::KeyExpired <-> LinuxError::EKEYEXPIRED(127)","L1_fmt":0,"L2_clippy":0,"L3_check":0,"graph_guard":"PASS","graph_conflict":"CLEAN","event":"ledger_entry"}
+{"ts": "2026-08-18 15:33:01", "event": "release", "series": "S-e2e", "files": ["util/kerrno/src/lib.rs"]}
