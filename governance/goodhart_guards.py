@@ -28,6 +28,7 @@ Rust 特性（为什么 Rust 版规则比 kernel 版多）：
 退出码: 0=PASS  1=REJECT(有 gaming 证据)  2=用法/环境错
 """
 import argparse
+import difflib
 import json
 import re
 import subprocess
@@ -43,6 +44,29 @@ SUPPRESS_PATTERNS = [
 ]
 DENY_WARN_DEL = re.compile(r'^-.*#\s*!?\s*\[deny\(.*warnings')   # 删掉全局警告门
 COMMENT_RE = re.compile(r'^\s*(/\*|//|\*|#)')
+
+# 配对消除规模保护：SequenceMatcher 是 O(n²)，超过此行数退回保守 max(0, rem-add)
+_PAIRING_CAP = 2000
+
+
+def net_removed(added, removed):
+    """改写对配对消除后的真实删除行数（G1 准确语义，与 kernel 版同源）。
+
+    difflib get_opcodes：equal→0 / replace→净删 / delete→全算；
+    大 diff 退回保守近似。
+    """
+    if not removed:
+        return 0
+    if len(added) + len(removed) > _PAIRING_CAP:
+        return max(0, len(removed) - len(added))
+    sm = difflib.SequenceMatcher(None, removed, added, autojunk=False)
+    real = 0
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == 'delete':
+            real += i2 - i1
+        elif tag == 'replace':
+            real += max(0, (i2 - i1) - (j2 - j1))
+    return real
 
 UNSAFE_RE = re.compile(r'\bunsafe\b\s*(\{|\s+fn|\s+impl|trait)')
 SAFETY_NOTE_RE = re.compile(r'(//\s*SAFETY|///\s*#\s*Safety)')
@@ -95,15 +119,14 @@ def guard(diff_text, task_type='add'):
         if all(a.strip() == '' for a in added) and all(r.strip() == '' for r in removed) and n_add + n_rem > 0:
             findings.append({'rule': 'G4', 'file': fname, 'detail': '纯 whitespace 变化'})
 
-        # G1: 净删除率（e2e 实证教训：改写行对 ±1 会被虚报删除率——
-        #     正确语义是净删除：net_del = max(0, rem-add)，改写对不算删除）
+        # G1: 配对消除净删除率（v3：difflib 改写对消除——kernel e2e 教训的根治版）
         total = n_add + n_rem
         if total >= 10 and task_type not in ('del', 'cleanup', 'refactor'):
-            net_del = max(0, n_rem - n_add)
-            del_ratio = net_del / total
+            real_del = net_removed(added, removed)
+            del_ratio = real_del / total
             if del_ratio > 0.4:
                 findings.append({'rule': 'G1', 'file': fname,
-                                 'detail': f'净删除占比 {del_ratio:.0%}（-{n_rem}/+{n_add}）—— 疑似删代码消 clippy 警告；确属删除任务请 --task-type del'})
+                                 'detail': f'配对消除后净删除占比 {del_ratio:.0%}（真删 {real_del}/{n_rem}，改写对已消除）—— 疑似删代码消 clippy 警告；确属删除任务请 --task-type del'})
 
         # G2: 注释占比（Rust 版含 /// doc comment）
         code_add = [a for a in added if a.strip()]
