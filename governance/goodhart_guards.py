@@ -95,13 +95,15 @@ def guard(diff_text, task_type='add'):
         if all(a.strip() == '' for a in added) and all(r.strip() == '' for r in removed) and n_add + n_rem > 0:
             findings.append({'rule': 'G4', 'file': fname, 'detail': '纯 whitespace 变化'})
 
-        # G1: 净删除率
+        # G1: 净删除率（e2e 实证教训：改写行对 ±1 会被虚报删除率——
+        #     正确语义是净删除：net_del = max(0, rem-add)，改写对不算删除）
         total = n_add + n_rem
         if total >= 10 and task_type not in ('del', 'cleanup', 'refactor'):
-            del_ratio = n_rem / total
+            net_del = max(0, n_rem - n_add)
+            del_ratio = net_del / total
             if del_ratio > 0.4:
                 findings.append({'rule': 'G1', 'file': fname,
-                                 'detail': f'删除占比 {del_ratio:.0%} —— 疑似删代码消 clippy 警告；确属删除任务请 --task-type del'})
+                                 'detail': f'净删除占比 {del_ratio:.0%}（-{n_rem}/+{n_add}）—— 疑似删代码消 clippy 警告；确属删除任务请 --task-type del'})
 
         # G2: 注释占比（Rust 版含 /// doc comment）
         code_add = [a for a in added if a.strip()]
@@ -157,6 +159,9 @@ def guard(diff_text, task_type='add'):
 
 def self_test():
     """gaming 样本必 REJECT，正常修复必 PASS。"""
+    # 改写对回归（kernel e2e 教训：±1 改写不是删除，必须 PASS）
+    rewrite_pair = ('+++ b/src/main.rs\n@@\n' + '\n'.join(f'-    let v{i} = old_call_{i}();' for i in range(10))
+                    + '\n' + '\n'.join(f'+    let v{i} = new_call_{i}();' for i in range(9)))
     cases = [
         ('正常修复(Result 传播)', 'add', """+++ b/src/parser.rs
 @@
@@ -172,6 +177,7 @@ def self_test():
 +    let v = unsafe { Vec::from_raw_parts(ptr, len, cap) };
 +    Ok(v)
 """, 'PASS'),
+        ('改写对 9+/10- 不误报(净删除语义)', 'add', rewrite_pair, 'PASS'),
         ('G1 删代码消警告', 'add', """+++ b/src/legacy.rs
 @@
 -    let r = legacy_path_a(x);
