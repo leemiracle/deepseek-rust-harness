@@ -25,3 +25,11 @@
 - cordis/index.js（9 工具：r_fmt/lint/build/miri/audit/semver + graph 三查 + queue）+ package.json dsh.bundle 纯 JS 零构建。
 - keyless e2e 全通（官方 Cordis loader + tgz）：删 #[test] gaming diff 穿管线 G1+G8 REJECT + rust-dev-contract 段进装配（RC=0）。
 - **密钥读取隔离**（手册 02 章 Scope 检查单项落地）：两仓 runCLI 均改 env 白名单（PATH/HOME/语言 + 领域锚 + 代理），API key/凭据不进子进程；文件面由 dsh fs-sandbox 治理。
+
+## 2026-08-18 17:00:58
+[timeout] 35 turns reached —— 交接：按 progress.md 续跑
+
+## 2026-08-18 · cordis/test/ 回归固化（与 kernel 版同款）
+
+- run.sh 自包含沙盒：删 #[test] 样本（G1+G8）→ 官方 loader → 断言 RC=0（实测通过）。
+- 依赖闭包同 kernel 版教训（cordis 未声明插件链，沙盒显式装 5 个）。npm pack 已验 cordis/test 入包。

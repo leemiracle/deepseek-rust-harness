@@ -3,3 +3,5 @@
 {"ts": "2026-08-18 15:33:01", "event": "release", "series": "S-e2e", "files": ["util/kerrno/src/lib.rs"]}
 {"ts": "2026-08-18 16:30:07", "event": "claim", "series": "S1-ntty", "files": ["boot/boot-info/src/lib.rs"]}
 {"ts": "2026-08-18 16:30:10", "event": "clash", "series": "S4-rogue", "files": ["boot/boot-info/src/lib.rs"]}
+{"ts": "2026-08-18 17:12:41", "event": "release", "series": "S1-ntty", "files": ["boot/boot-info/src/lib.rs"]}
+{"ts": "2026-08-18 17:12:42", "event": "ledger_entry", "series": "S1-ntty", "patch": "batch fmt e2e ABORTED-lesson", "verdict": "REJECT-ENV", "reason": "stable 1.95 fmt != pinned nightly-2026-03-08 (make fmt)；52 漂移=工具链风格差非上游未格式化；commit stable 重排会破上游 CI 基线；pre-commit hook 拦截正确", "commit": "none"}
