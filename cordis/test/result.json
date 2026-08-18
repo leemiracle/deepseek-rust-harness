@@ -1,6 +1,0 @@
-{
-  "stage": "done",
-  "tool_pipeline": "REJECT-seen",
-  "contract_section": true,
-  "guard_head": "exit=1\n{\n  \"guard\": \"goodhart\",\n  \"verdict\": \"REJECT\",\n  \"findings\": [\n    {\n      \"rule\": \"G1\",\n      \"file\": \"lib.rs\",\n      \"detail\": \"配对消除后净删除占比 100%（真删 11/11，改写对已消除）—— 疑似删代码消 clippy 警告；确属删除任务请 --task-type del\"\n    },\n    {\n      \"rule\": \"G8\",\n      \"file\""
-}
