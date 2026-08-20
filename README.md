@@ -72,3 +72,14 @@ python3 rust_host.py --task "给 src/parser.rs 的 parse() 补错误处理并过
 ## 📄 License
 
 [MIT](LICENSE) © 2026 leemiracle
+
+## 2026-08-20 扩充：knowledge/ 最佳实践层
+
+```
+knowledge/
+├── rust_docs_map.md     按问题查的文档地图（19 类问题→权威源；本地惯例优先原则）
+└── rust_practices.md    12 张语义级实践卡（SAFETY 三要素/unwrap 豁免边界/feature 叠加陷阱/
+                         async 隐蔽阻塞/drop 顺序/no_std 堆约束…clippy 管不到、review 常漏的）
+```
+
+定位：AGENTS.md 红线是**禁令**，practices 卡是**正例**，docs_map 是**查询协议**——三层构成 Instructions 子系统的领域纵深。
